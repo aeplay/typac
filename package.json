@@ -1,0 +1,24 @@
+{
+    "name": "typac",
+    "version": "0.0.1",
+    "description": "Efficient binary representations of data for communication, language interop and high-perf apps.",
+    "main": "index.js",
+    "scripts": {
+        "test": "cd test && esr test.ts"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/aeplay/typac.git"
+    },
+    "author": "Anselm Eickhoff",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/aeplay/typac/issues"
+    },
+    "homepage": "https://github.com/aeplay/typac#readme",
+    "devDependencies": {
+        "@types/node": "^14.11.2",
+        "typescript": "^4.0.2",
+        "esbuild-runner": "^1.3.2"
+    }
+}
