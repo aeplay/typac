@@ -5,9 +5,11 @@ export function binaryToDeviceToken(buffer: Uint8Array, offset: Offset): {value:
     let deviceToken: DeviceToken;
     const deviceToken_tagIdx: 0 = varint.decode(buffer, offset.asByteOffset().bytes);
     offset = offset.addBytes(varint.decode.bytes);
+    const deviceToken_afterTagIdx = offset;
     const deviceToken_length = varint.decode(buffer, offset.asByteOffset().bytes);
     offset = offset.addBytes(varint.decode.bytes);
     if (deviceToken_tagIdx === 0) { // apple
+        offset = deviceToken_afterTagIdx
         // DeviceTokenApple
         const _length = varint.decode(buffer, offset.asByteOffset().bytes);
         offset = offset.addBytes(varint.decode.bytes);

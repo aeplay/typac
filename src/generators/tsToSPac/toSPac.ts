@@ -1,20 +1,21 @@
 import { writeFileSync } from 'fs';
-import { S, Schema } from '..';
+import { S, Schema } from '../..';
 import {
     defaultSPacEnc,
     SPacEncoding,
     SPacEnumEncoding,
     SPacNumberEncoding,
     SPacRecordEncoding,
-} from '../encodings/spac';
+} from '../../encodings/spac';
 import {
     TSEncoding,
     TSEnumEncoding,
     TSNumberEncoding,
     TSRecordEncoding,
+    TSTransformingEncoding,
     TSVoidEncoding,
-} from '../encodings/ts';
-import { Block, relativeImportPath, toFirstLowerCase } from '../helpers';
+} from '../../encodings/ts';
+import { Block, relativeImportPath, toFirstLowerCase } from '../../helpers';
 import path from 'path';
 
 // to enforce type compatability
@@ -42,9 +43,9 @@ export function spacToTs<
         );
 
         const file = `import { varint, Offset, textDecoder } from 'runtime';
-${Object.entries(outFileState.imports).map(
-    ([module, imports]) => `import { ${[...imports].join(', ')} } from '${module}';`,
-)}
+${Object.entries(outFileState.imports)
+    .map(([module, imports]) => `import { ${[...imports].join(', ')} } from '${module}';`)
+    .join('\n')}
 
 ${fn.toString()}`;
 
@@ -83,7 +84,9 @@ export function decoderPart(
     } else if (tsEnc.type === 'record' && spacEnc.type === 'record') {
         return recordDecoderPart(tsEnc, spacEnc, valueTarget, varCtx, outFileState);
     } else if (tsEnc.type === 'enum' && spacEnc.type === 'enum') {
-        return enumEncoderPart(tsEnc, spacEnc, valueTarget, varCtx, outFileState);
+        return enumDecoderPart(tsEnc, spacEnc, valueTarget, varCtx, outFileState);
+    } else if (tsEnc.type === 'tsTransforming') {
+        return transformingDecoderPart(tsEnc, spacEnc, valueTarget, varCtx, outFileState);
     } else {
         throw new Error(`Unsupported combination ${tsEnc.type} <-> ${spacEnc.type}`);
     }
@@ -201,7 +204,7 @@ function recordDecoderPart(
     ];
 }
 
-function enumEncoderPart(
+function enumDecoderPart(
     tsEnc: TSEnumEncoding,
     spacEnc: SPacEnumEncoding,
     valueTarget: string,
@@ -213,6 +216,7 @@ function enumEncoderPart(
     outFileState.imports[importPath].add(tsEnc.name);
 
     const tagIdx = varCtx + '_tagIdx';
+    const afterTagIdx = varCtx + '_afterTagIdx';
     const length = varCtx + '_length';
 
     return [
@@ -220,6 +224,7 @@ function enumEncoderPart(
             'const ' + tagIdx + ': ' + tsEnc.alternatives.map((_, i) => i).join(' | '),
             tagIdx,
         ),
+        Block.line(`const ${afterTagIdx} = offset;`),
         ...varuintDecoderPart('const ' + length, length),
         ...(Block.joining(
             '',
@@ -228,6 +233,10 @@ function enumEncoderPart(
                 return new Block(
                     `if (${tagIdx} === ${altTagIdx}) { // ${altNameOrIdx}`,
                     [
+                        // for records, reuse the parent enum's length tag as the record's length tag
+                        ...(altSchema.type === 'record'
+                            ? [Block.line(`offset = ${afterTagIdx}`)]
+                            : []),
                         ...decoderPart(
                             tsEnc.encodings[altTagIdx],
                             spacEnc.encodings[altTagIdx],
@@ -244,5 +253,28 @@ function enumEncoderPart(
             }),
             'else',
         ).body || []),
+    ];
+}
+
+function transformingDecoderPart(
+    tsEnc: TSTransformingEncoding,
+    spacEnc: SPacEncoding,
+    valueTarget: string,
+    varCtx: string,
+    outFileState: OutFileState,
+) {
+    const inBaseEnc = varCtx + '_inner';
+
+    if (!outFileState.imports[tsEnc.definedIn]) outFileState.imports[tsEnc.definedIn] = new Set();
+    outFileState.imports[tsEnc.definedIn].add(tsEnc.fromBaseSymbol);
+
+    if (tsEnc.baseEncoding.type !== spacEnc.type)
+        throw new Error(
+            `Incompatible transforming encoding and SPac encoding ${tsEnc.typeSymbol}(${tsEnc.baseEncoding}) <-> ${spacEnc.type}`,
+        );
+
+    return [
+        ...decoderPart(tsEnc.baseEncoding, spacEnc, 'const ' + inBaseEnc, inBaseEnc, outFileState),
+        Block.line(`${valueTarget} = ${tsEnc.fromBaseSymbol}(${inBaseEnc})`),
     ];
 }
