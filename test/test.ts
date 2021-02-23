@@ -1,7 +1,7 @@
 import { S } from '../src';
 import { SPacEncode } from '../src/encodings/spac';
 import { TSDef } from '../src/generators/toTSDef';
-import { spacToTs } from '../src/generators/tsToSPac';
+import { spacToTs } from '../src/generators/tsToSPac/toSPac';
 
 const NotificationSettingsS = S.TaggedEnum('NotificationSettings', {
     V0: S.Record('NotificationSettingsV0', {
